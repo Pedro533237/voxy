@@ -53,8 +53,13 @@ public class WorldEngine {
     public WorldEngine(SectionStorage storage, @Nullable VoxyInstance instance) {
         this.instanceIn = instance;
 
-        int cacheSize = 1024;
-        if (Runtime.getRuntime().maxMemory()>=(1L<<32)-(200L<<20)) {
+        long maxMemory = Runtime.getRuntime().maxMemory();
+        int cacheSize;
+        if (maxMemory < (2L << 30)) {
+            cacheSize = 512;
+        } else if (maxMemory < (4L << 30)) {
+            cacheSize = 1024;
+        } else {
             cacheSize = 2048;
         }
 

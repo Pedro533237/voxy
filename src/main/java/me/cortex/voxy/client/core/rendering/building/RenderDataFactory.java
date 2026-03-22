@@ -21,6 +21,9 @@ public class RenderDataFactory {
 
     private static final boolean CHECK_NEIGHBOR_FACE_OCCLUSION = true;
     private static final boolean DISABLE_CULL_SAME_OCCLUDES = false;//TODO: FIX TRANSLUCENTS (e.g. stained glass) breaking on chunk boarders with this set to false (it might be something else????)
+    private static final int AGGRESSIVE_SIMPLIFY_LOD_LEVEL = 3;
+    private static final long SIMPLIFIED_FACE_METADATA = 0x070707070707L;
+    private static final long SIMPLIFIED_SHARED_FLAGS = (32L | 64L) << (8 * 6);//Cull same + fully opaque
 
     private static final boolean VERIFY_MESHING = VoxyCommon.isVerificationFlagOn("verifyMeshing");
 
@@ -214,7 +217,13 @@ public class RenderDataFactory {
         return quadData;
     }
 
-    private int prepareSectionData(final long[] rawSectionData) {
+    private static long getSimplifiedMetadata(long metadata) {
+        //Keep biome tinting to avoid very noticeable colour pop-in while still forcing a full-cube opaque model.
+        long biomeTintFlag = metadata & (1L << (8 * 6));
+        return SIMPLIFIED_FACE_METADATA | SIMPLIFIED_SHARED_FLAGS | biomeTintFlag;
+    }
+
+    private int prepareSectionData(final long[] rawSectionData, boolean simplifyComplexGeometry) {
         final var sectionData = this.sectionData;
         final var rawModelIds = this.modelMan._unsafeRawAccess();
         long opaque = 0;
@@ -234,6 +243,9 @@ public class RenderDataFactory {
                     return Mapper.getBlockId(block)|(1<<31);
                 }
                 long modelMetadata = this.modelMan.getModelMetadataFromClientId(modelId);
+                if (simplifyComplexGeometry) {
+                    modelMetadata = getSimplifiedMetadata(modelMetadata);
+                }
 
                 sectionData[i * 2] = packPartialQuadData(modelId, block, modelMetadata);
                 sectionData[i * 2 + 1] = modelMetadata;
@@ -1640,7 +1652,8 @@ public class RenderDataFactory {
         Arrays.fill(this.fluidMasks, 0);
 
         //Prepare everything
-        int neighborMskAndFlags = this.prepareSectionData(section._unsafeGetRawDataArray());
+        boolean simplifyComplexGeometry = section.lvl >= AGGRESSIVE_SIMPLIFY_LOD_LEVEL;
+        int neighborMskAndFlags = this.prepareSectionData(section._unsafeGetRawDataArray(), simplifyComplexGeometry);
         if ((neighborMskAndFlags&(1<<31))!=0) {//We failed to get everything so throw exception
             throw new IdNotYetComputedException(neighborMskAndFlags&((1<<20)-1), true);
         }

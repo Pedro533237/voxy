@@ -20,5 +20,11 @@ jobs:
         with:
           cache-read-only: true
 
-      - name: Gradle build
-        run: ./gradlew build
+      - name: Gradle build + jar
+        run: ./gradlew -I init.gradle build remapJar
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxy-jar-pr
+          path: build/libs/*.jar
